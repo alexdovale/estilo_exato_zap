@@ -3,7 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../../data/repositories/queue_repository.dart';
+import '../../data/models/queue_item.dart';
+
+// --- IMPORTAÇÕES DAS TELAS COMPLEMENTARES ---
+import 'walk_in_registration_page.dart';
+import 'profile_page.dart'; // <-- AGORA O PAINEL SABE ONDE ESTÁ O PERFIL
+import '../reports/finance_report_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -24,6 +31,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _loadBusinessInfo();
   }
 
+  // Busca o nome do negócio e a profissão no Firebase
   _loadBusinessInfo() async {
     var doc = await FirebaseFirestore.instance.collection('ateliers').doc(uid).get();
     if (doc.exists && mounted) {
@@ -38,18 +46,27 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(businessName.toUpperCase(), style: GoogleFonts.manrope(color: const Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 2)),
-        actions: [
-          IconButton(icon: const Icon(Icons.logout, color: Colors.white24, size: 20), onPressed: () => FirebaseAuth.instance.signOut()),
-        ],
+      appBar: _buildAppBar(),
+      
+      // --- BOTÃO FLUTUANTE PARA ADICIONAR CLIENTE PRESENCIAL ---
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFFF2CA50),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const WalkInRegistrationPage()),
+          );
+        },
+        icon: const Icon(Icons.person_add, color: Colors.black),
+        label: const Text("NOVO CLIENTE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
+
       body: StreamBuilder<List<QueueItem>>(
         stream: _repository.getQueueStream(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFF2CA50)));
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFFF2CA50)));
+          }
           
           final queue = snapshot.data ?? [];
           final inService = queue.where((item) => item.status == 'in_service').toList();
@@ -61,22 +78,29 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                Text("PAINEL DA ${profession.toUpperCase()}", style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)),
-                Text("${waiting.length} clientes na fila", style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1)),
+                Text("PAINEL DA ${profession.toUpperCase()}", 
+                  style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)),
+                Text("${waiting.length} clientes na fila", 
+                  style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1)),
                 const SizedBox(height: 32),
                 
                 const Text("ATENDIMENTO ATUAL", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                 const SizedBox(height: 12),
+                
                 inService.isNotEmpty ? _buildCurrentClientCard(inService.first) : _buildEmptyChairCard(),
+                
                 const SizedBox(height: 32),
                 
                 const Text("FILA DE ESPERA", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                 const SizedBox(height: 12),
+                
                 Expanded(
-                  child: waiting.isEmpty ? const Center(child: Text("Fila vazia", style: TextStyle(color: Colors.white10))) : ListView.builder(
-                    itemCount: waiting.length,
-                    itemBuilder: (context, index) => _buildWaitingItem(waiting[index], index + 1),
-                  ),
+                  child: waiting.isEmpty 
+                    ? const Center(child: Text("Fila vazia", style: TextStyle(color: Colors.white10))) 
+                    : ListView.builder(
+                        itemCount: waiting.length,
+                        itemBuilder: (context, index) => _buildWaitingItem(waiting[index], index + 1),
+                      ),
                 ),
 
                 if (waiting.isNotEmpty && inService.isEmpty)
@@ -88,18 +112,68 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       child: Text("CHAMAR ${waiting.first.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
                     ),
                   ),
+                
                 const SizedBox(height: 12),
+                
                 TextButton.icon(
                   onPressed: () => Share.share("Olá! Entre na minha fila virtual do EstiloExatoZap aqui: https://estiloexatozap.web.app/#/fila/$uid"),
                   icon: const Icon(Icons.share, color: Color(0xFFF2CA50)),
                   label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70)),
                 ),
-                const SizedBox(height: 20),
+                
+                const SizedBox(height: 80),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  // --- CABEÇALHO ATUALIZADO COM O BOTÃO DE PERFIL/CONFIGURAÇÕES ---
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      automaticallyImplyLeading: false, 
+      
+      title: Image.network(
+        'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
+        height: 45,
+        errorBuilder: (context, error, stackTrace) => Text(businessName.toUpperCase(), 
+          style: GoogleFonts.manrope(color: const Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 2)),
+      ),
+      
+      actions: [
+        // 📊 BOTÃO DE ESTATÍSTICAS
+        IconButton(
+          icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)),
+          tooltip: 'Estatísticas',
+          onPressed: () {
+             Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()));
+          },
+        ),
+        
+        // ⚙️ BOTÃO DE CONFIGURAÇÕES / PERFIL (NOVO!)
+        IconButton(
+          icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)),
+          tooltip: 'Perfil e Equipe',
+          onPressed: () {
+             Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+          },
+        ),
+
+        // 🚪 BOTÃO DE SAIR
+        IconButton(
+          icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22),
+          tooltip: 'Sair da Conta',
+          onPressed: () async {
+            await FirebaseAuth.instance.signOut();
+          },
+        ),
+        const SizedBox(width: 8),
+      ],
     );
   }
 

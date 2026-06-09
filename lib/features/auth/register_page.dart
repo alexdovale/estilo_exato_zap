@@ -25,8 +25,15 @@ class _RegisterPageState extends State<RegisterPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("ESTILO EXATO ZAP", style: GoogleFonts.manrope(color: const Color(0xFFF2CA50), fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 12)),
-              const SizedBox(height: 8),
+              // --- AQUI ENTRA A SUA LOGO! ---
+              Image.network(
+                'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
+                height: 80,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => const Icon(Icons.cut, color: Color(0xFFF2CA50), size: 50),
+              ),
+              const SizedBox(height: 24),
+              
               Text("Crie sua conta\ne ganhe 14 dias", style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1)),
               const SizedBox(height: 40),
               
