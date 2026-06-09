@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "969712173682",
+    "project_id": "estiloexatozap-59075",
+    "storage_bucket": "estiloexatozap-59075.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:969712173682:android:18c70670f04e3d792478eb",
+        "android_client_info": {
+          "package_name": "com.example.estilo_exato_zap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOAZnfFrKpvghos926IyywwnWNlBkYHYk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
