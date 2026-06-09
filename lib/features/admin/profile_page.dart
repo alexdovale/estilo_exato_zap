@@ -4,8 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// Importações das telas que o perfil abre
+// Importações das telas de gestão
 import 'team_management_page.dart';
+import 'service_menu_page.dart'; // <-- AGORA IMPORTADO
 import '../reports/finance_report_page.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -20,6 +21,7 @@ class ProfilePage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
         title: Text("CONFIGURAÇÕES", 
           style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: const Color(0xFFF2CA50))),
         leading: const BackButton(color: Color(0xFFF2CA50)),
@@ -32,15 +34,19 @@ class ProfilePage extends StatelessWidget {
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text("Erro ao carregar dados", style: TextStyle(color: Colors.white)));
+            return const Center(child: Text("Erro ao carregar perfil", style: TextStyle(color: Colors.white)));
           }
 
           var data = snapshot.data!.data() as Map<String, dynamic>;
           String name = data['nome_negocio'] ?? 'Meu Atelier';
           String email = data['email'] ?? '';
           String status = data['status_assinatura'] ?? 'trial';
-          DateTime expiry = (data['data_expiracao'] as Timestamp).toDate();
-          int daysLeft = expiry.difference(DateTime.now()).inDays;
+          
+          // Lógica de cálculo de dias restantes
+          Timestamp expiryTimestamp = data['data_expiracao'];
+          DateTime expiryDate = expiryTimestamp.toDate();
+          int daysLeft = expiryDate.difference(DateTime.now()).inDays;
+          if (daysLeft < 0) daysLeft = 0;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -56,24 +62,32 @@ class ProfilePage extends StatelessWidget {
                 const SizedBox(height: 40),
                 _buildSectionTitle("GESTÃO DO ATELIER"),
                 
+                // 1. GERENCIAR EQUIPE
                 _buildMenuOption(Icons.people_outline, "Gerenciar Equipe", () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TeamManagementPage()));
                 }),
                 
+                // 2. RELATÓRIOS FINANCEIROS
                 _buildMenuOption(Icons.bar_chart_outlined, "Relatórios Financeiros", () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()));
                 }),
 
-                _buildMenuOption(Icons.content_cut, "Editar Menu de Serviços", () {
-                  // Futura tela de edição de preços
+                // 3. EDITAR MENU DE SERVIÇOS
+                _buildMenuOption(Icons.restaurant_menu_outlined, "Editar Menu de Serviços", () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ServiceMenuPage()));
                 }),
 
                 const SizedBox(height: 40),
                 _buildSectionTitle("SUPORTE E AJUDA"),
                 _buildMenuOption(Icons.help_outline, "Falar com suporte no Zap", () => _contactSupport()),
                 
-                const SizedBox(height: 50),
-                _buildLogoutButton(),
+                const SizedBox(height: 60),
+                _buildLogoutButton(context),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text("Versão 1.0.0 • EstiloExatoZap", 
+                    style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 10)),
+                )
               ],
             ),
           );
@@ -88,7 +102,7 @@ class ProfilePage extends StatelessWidget {
         CircleAvatar(
           radius: 30,
           backgroundColor: const Color(0xFFF2CA50).withOpacity(0.1),
-          child: Text(name[0].toUpperCase(), 
+          child: Text(name.isNotEmpty ? name[0].toUpperCase() : "A", 
             style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 24, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(width: 16),
@@ -124,7 +138,7 @@ class ProfilePage extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(isTrial ? "PLANO TESTE (14 DIAS)" : "ASSINATURA ATIVA", 
+              Text(isTrial ? "PLANO TESTE" : "ASSINATURA ATIVA", 
                 style: TextStyle(color: isTrial ? Colors.white54 : Colors.black54, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1)),
               Icon(Icons.verified, color: isTrial ? Colors.white24 : Colors.black54, size: 20),
             ],
@@ -136,7 +150,7 @@ class ProfilePage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            isTrial ? "Aproveite para cadastrar sua equipe e testar a fila." : "Sua renovação automática está ligada.",
+            isTrial ? "Seu acesso gratuito expira em breve." : "Sua renovação automática está ligada.",
             style: TextStyle(color: isTrial ? Colors.white38 : Colors.black38, fontSize: 12),
           ),
         ],
@@ -165,10 +179,15 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton(BuildContext context) {
     return Center(
       child: TextButton.icon(
-        onPressed: () => FirebaseAuth.instance.signOut(),
+        onPressed: () async {
+          await FirebaseAuth.instance.signOut();
+          if (context.mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        },
         icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
         label: const Text("SAIR DA CONTA", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12)),
       ),
@@ -176,8 +195,8 @@ class ProfilePage extends StatelessWidget {
   }
 
   void _contactSupport() async {
-    const phone = "5511999999999"; // Coloque seu número aqui
-    final url = Uri.parse("https://wa.me/$phone?text=Olá, preciso de ajuda com o EstiloExatoZap");
+    const phone = "5511999999999"; // Coloque seu número oficial aqui
+    final url = Uri.parse("https://wa.me/$phone?text=Olá, preciso de ajuda com o sistema EstiloExatoZap.");
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }

@@ -7,9 +7,9 @@ import 'package:share_plus/share_plus.dart';
 import '../../data/repositories/queue_repository.dart';
 import '../../data/models/queue_item.dart';
 
-// --- IMPORTAÇÕES DAS TELAS COMPLEMENTARES ---
+// Importações das telas que o Painel vai abrir
 import 'walk_in_registration_page.dart';
-import 'profile_page.dart'; // <-- AGORA O PAINEL SABE ONDE ESTÁ O PERFIL
+import 'profile_page.dart';
 import '../reports/finance_report_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
@@ -23,6 +23,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final QueueRepository _repository = QueueRepository();
   String businessName = "Carregando...";
   String profession = "Profissional";
+  bool isAdmin = false; // Controle de acesso (Dono vs Funcionário)
   final String uid = FirebaseAuth.instance.currentUser!.uid;
 
   @override
@@ -31,14 +32,28 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _loadBusinessInfo();
   }
 
-  // Busca o nome do negócio e a profissão no Firebase
+  // Verifica se o usuário logado é o DONO do atelier
   _loadBusinessInfo() async {
     var doc = await FirebaseFirestore.instance.collection('ateliers').doc(uid).get();
-    if (doc.exists && mounted) {
-      setState(() {
-        businessName = doc.data()?['nome_negocio'] ?? "Meu Negócio";
-        profession = doc.data()?['tipo_servico'] ?? "Profissional";
-      });
+    
+    if (doc.exists) {
+      // Se o documento existe na coleção 'ateliers', ele é o PROPRIETÁRIO
+      if (mounted) {
+        setState(() {
+          businessName = doc.data()?['nome_negocio'] ?? "Meu Negócio";
+          profession = doc.data()?['tipo_servico'] ?? "Profissional";
+          isAdmin = true; 
+        });
+      }
+    } else {
+      // Se não existe, ele é um FUNCIONÁRIO logado
+      if (mounted) {
+        setState(() {
+          businessName = "Painel de Atendimento";
+          profession = "Colaborador";
+          isAdmin = false;
+        });
+      }
     }
   }
 
@@ -48,7 +63,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       backgroundColor: const Color(0xFF131313),
       appBar: _buildAppBar(),
       
-      // --- BOTÃO FLUTUANTE PARA ADICIONAR CLIENTE PRESENCIAL ---
+      // BOTÃO FLUTUANTE: Disponível para Admin e Staff
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFF2CA50),
         onPressed: () {
@@ -78,22 +93,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
-                Text("PAINEL DA ${profession.toUpperCase()}", 
-                  style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)),
-                Text("${waiting.length} clientes na fila", 
-                  style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1)),
+                _buildHeader(waiting.length),
                 const SizedBox(height: 32),
                 
-                const Text("ATENDIMENTO ATUAL", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                const SizedBox(height: 12),
-                
-                inService.isNotEmpty ? _buildCurrentClientCard(inService.first) : _buildEmptyChairCard(),
-                
+                _buildSectionTitle("ATENDIMENTO ATUAL"),
+                inService.isNotEmpty 
+                  ? _buildCurrentClientCard(inService.first) 
+                  : _buildEmptyChairCard(),
+
                 const SizedBox(height: 32),
                 
-                const Text("FILA DE ESPERA", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                const SizedBox(height: 12),
-                
+                _buildSectionTitle("FILA DE ESPERA"),
                 Expanded(
                   child: waiting.isEmpty 
                     ? const Center(child: Text("Fila vazia", style: TextStyle(color: Colors.white10))) 
@@ -103,23 +113,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                 ),
 
+                // BOTÃO DE CHAMADA: Só aparece se a cadeira estiver vazia
                 if (waiting.isNotEmpty && inService.isEmpty)
-                  SizedBox(
-                    width: double.infinity, height: 60,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
-                      onPressed: () => _repository.callNext(waiting.first.id),
-                      child: Text("CHAMAR ${waiting.first.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
-                    ),
-                  ),
+                  _buildCallNextButton(waiting.first),
                 
                 const SizedBox(height: 12),
                 
-                TextButton.icon(
-                  onPressed: () => Share.share("Olá! Entre na minha fila virtual do EstiloExatoZap aqui: https://estiloexatozap.web.app/#/fila/$uid"),
-                  icon: const Icon(Icons.share, color: Color(0xFFF2CA50)),
-                  label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70)),
-                ),
+                _buildShareLinkButton(),
                 
                 const SizedBox(height: 80),
               ],
@@ -130,7 +130,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // --- CABEÇALHO ATUALIZADO COM O BOTÃO DE PERFIL/CONFIGURAÇÕES ---
+  // --- CABEÇALHO COM TRAVA DE SEGURANÇA ---
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -142,32 +142,33 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
         height: 45,
         errorBuilder: (context, error, stackTrace) => Text(businessName.toUpperCase(), 
-          style: GoogleFonts.manrope(color: const Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 2)),
+          style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 12)),
       ),
       
       actions: [
-        // 📊 BOTÃO DE ESTATÍSTICAS
-        IconButton(
-          icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)),
-          tooltip: 'Estatísticas',
-          onPressed: () {
-             Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()));
-          },
-        ),
+        // 📊 BOTÃO DE ESTATÍSTICAS: Só aparece para o DONO (isAdmin)
+        if (isAdmin)
+          IconButton(
+            icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)),
+            tooltip: 'Faturamento',
+            onPressed: () {
+               Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()));
+            },
+          ),
         
-        // ⚙️ BOTÃO DE CONFIGURAÇÕES / PERFIL (NOVO!)
-        IconButton(
-          icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)),
-          tooltip: 'Perfil e Equipe',
-          onPressed: () {
-             Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
-          },
-        ),
+        // ⚙️ BOTÃO DE CONFIGURAÇÕES: Só aparece para o DONO (isAdmin)
+        if (isAdmin)
+          IconButton(
+            icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)),
+            tooltip: 'Gerenciar Atelier',
+            onPressed: () {
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+            },
+          ),
 
-        // 🚪 BOTÃO DE SAIR
+        // 🚪 SAIR DA CONTA: Para todos
         IconButton(
           icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22),
-          tooltip: 'Sair da Conta',
           onPressed: () async {
             await FirebaseAuth.instance.signOut();
           },
@@ -177,16 +178,39 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  Widget _buildHeader(int count) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(isAdmin ? "PAINEL ADMINISTRATIVO" : "PAINEL DE ATENDIMENTO", 
+          style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)),
+        Text("$count na espera", 
+          style: GoogleFonts.manrope(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white)),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(title, style: GoogleFonts.workSans(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+    );
+  }
+
   Widget _buildCurrentClientCard(QueueItem item) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3))),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(item.clientName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            Text(item.service, style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold)),
+            Text(item.service.toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold)),
           ]),
           ElevatedButton(
             onPressed: () => _showFinishDialog(item),
@@ -201,22 +225,43 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildEmptyChairCard() {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(border: Border.all(color: Colors.white10), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(border: Border.all(color: Colors.white10), borderRadius: BorderRadius.circular(16)),
       child: const Center(child: Text("CADEIRA DISPONÍVEL", style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold, fontSize: 12))),
     );
   }
 
   Widget _buildWaitingItem(QueueItem item, int pos) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
           Text("#$pos", style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(width: 16),
           Expanded(child: Text(item.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+          const Icon(Icons.chat_bubble_outline, color: Color(0xFFF2CA50), size: 16),
         ],
       ),
+    );
+  }
+
+  Widget _buildCallNextButton(QueueItem item) {
+    return SizedBox(
+      width: double.infinity, height: 60,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
+        onPressed: () => _repository.callNext(item.id),
+        child: Text("CHAMAR ${item.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildShareLinkButton() {
+    return TextButton.icon(
+      onPressed: () => Share.share("Olá! Entre na minha fila virtual do EstiloExatoZap aqui: https://estiloexatozap.web.app/#/fila/$uid"),
+      icon: const Icon(Icons.share, color: Color(0xFFF2CA50), size: 18),
+      label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70, fontSize: 12)),
     );
   }
 
