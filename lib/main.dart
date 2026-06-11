@@ -1,19 +1,21 @@
-import 'features/client/client_login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'features/admin/profile_page.dart';
+
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 
 // Importações das telas
-import 'features/auth/welcome_page.dart'; // <-- TELA INICIAL
+import 'features/auth/welcome_page.dart';
 import 'features/auth/register_page.dart';
+import 'features/auth/login_page.dart';
 import 'features/admin/admin_dashboard_page.dart';
+import 'features/admin/profile_page.dart';
 import 'features/setup/setup_page.dart';
 import 'features/queue/public_queue_page.dart';
+import 'features/client/client_login_page.dart'; // <-- IMPORTADA
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,15 +32,14 @@ class EstiloExatoZapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. OUVIR O ESTADO DE AUTENTICAÇÃO
+    // 1. OUVIR O ESTADO DE AUTENTICAÇÃO (DONO OU FUNCIONÁRIO)
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
         final user = authSnapshot.data;
 
-        // --- CASO: USUÁRIO NÃO LOGADO ---
+        // --- CASO: USUÁRIO NÃO LOGADO NO SISTEMA ---
         if (user == null) {
-          // Agora ele manda para a Tela de Boas-Vindas (Dono ou Funcionário)
           return _buildMaterialApp(context, 'obsidian', const WelcomePage());
         }
 
@@ -46,13 +47,14 @@ class EstiloExatoZapApp extends StatelessWidget {
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('ateliers').doc(user.uid).snapshots(),
           builder: (context, dbSnapshot) {
-            // Enquanto carrega os dados do banco
+            
             if (dbSnapshot.connectionState == ConnectionState.waiting) {
               return _buildMaterialApp(context, 'obsidian', const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFF2CA50)))));
             }
 
-            // Se o documento não existir no banco (erro de fluxo ou conta incompleta)
+            // Se o usuário logado NÃO for um dono de atelier (pode ser um cliente logado ou erro)
             if (!dbSnapshot.hasData || !dbSnapshot.data!.exists) {
+              // Aqui, se o documento não existe em 'ateliers', verificamos se é um cliente ou voltamos para Welcome
               return _buildMaterialApp(context, 'obsidian', const WelcomePage());
             }
 
@@ -71,17 +73,16 @@ class EstiloExatoZapApp extends StatelessWidget {
             DateTime hoje = DateTime.now();
             bool temAcesso = status == 'ativo' || hoje.isBefore(dataExpiracao);
 
-            // --- LÓGICA DE NAVEGAÇÃO INTERNA ---
+            // --- LÓGICA DE NAVEGAÇÃO INTERNA DO ADMIN ---
             Widget homeWidget;
             if (!isConfigured) {
-              homeWidget = const SetupPage(); // Mandar para configurar ramo e serviços
+              homeWidget = const SetupPage(); 
             } else if (!temAcesso) {
-              homeWidget = _buildExpiredPage(); // Bloquear por falta de pagamento
+              homeWidget = _buildExpiredPage(); 
             } else {
-              homeWidget = const AdminDashboardPage(); // Painel principal liberado
+              homeWidget = const AdminDashboardPage(); 
             }
 
-            // 3. RETORNA O APP COM O TEMA QUE VEM DO BANCO DE DADOS
             return _buildMaterialApp(context, themeName, homeWidget);
           },
         );
@@ -89,18 +90,22 @@ class EstiloExatoZapApp extends StatelessWidget {
     );
   }
 
-  // Função auxiliar para construir o MaterialApp com o tema dinâmico e Rotas
+  // --- FUNÇÃO QUE CONSTRÓI O APP E GERENCIA AS ROTAS PÚBLICAS ---
   Widget _buildMaterialApp(BuildContext context, String themeName, Widget home) {
     return MaterialApp(
       title: 'EstiloExatoZap',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.getTheme(themeName), // DINÂMICO: Obsidian ou Aura
+      theme: AppTheme.getTheme(themeName), 
       home: home,
       onGenerateRoute: (settings) {
-        // ROTA DO CLIENTE: Manda para a TELA DE LOGIN DO CLIENTE em vez do formulário anônimo
+        // ROTA DO CLIENTE: Se o link for /fila/ID_DO_SALAO
         if (settings.name != null && settings.name!.startsWith('/fila/')) {
           final id = settings.name!.replaceFirst('/fila/', '');
-          return MaterialPageRoute(builder: (_) => ClientLoginPage(atelierId: id));
+          
+          // O cliente cai na tela de LOGIN dele para esse salão específico
+          return MaterialPageRoute(
+            builder: (_) => ClientLoginPage(atelierId: id),
+          );
         }
         return null;
       },
@@ -109,26 +114,34 @@ class EstiloExatoZapApp extends StatelessWidget {
 
   // Tela de bloqueio quando os 14 dias de Trial acabam
   Widget _buildExpiredPage() {
-    return const Scaffold(
-      backgroundColor: Color(0xFF131313),
+    return Scaffold(
+      backgroundColor: const Color(0xFF131313),
       body: Center(
         child: Padding(
-          padding: EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lock_clock_outlined, color: Colors.redAccent, size: 64),
-              SizedBox(height: 24),
+              const Icon(Icons.lock_clock_outlined, color: Colors.redAccent, size: 64),
+              const SizedBox(height: 24),
               Text(
                 "Teste Grátis Encerrado",
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                style: GoogleFonts.manrope(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 16),
-              Text(
-                "Sua assinatura EstiloExatoZap expirou.\nEntre em contato com o suporte para renovar seu acesso.",
+              const SizedBox(height: 16),
+              const Text(
+                "Sua assinatura EstiloExatoZap expirou.\nEntre em contato com o suporte ou realize o pagamento para continuar.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white60, fontSize: 16),
               ),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
+                onPressed: () {
+                  // Aqui abriria o link do Mercado Pago
+                },
+                child: const Text("RENOVAR ASSINATURA", style: TextStyle(color: Colors.black)),
+              )
             ],
           ),
         ),

@@ -3,11 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:http/http.dart' as http; // Requer: flutter pub add http
+import 'dart:convert';
 
 import '../../data/repositories/queue_repository.dart';
 import '../../data/models/queue_item.dart';
 
-// Importações das telas que o Painel vai abrir
+// Importações das telas
 import 'walk_in_registration_page.dart';
 import 'profile_page.dart';
 import '../reports/finance_report_page.dart';
@@ -23,7 +25,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final QueueRepository _repository = QueueRepository();
   String businessName = "Carregando...";
   String profession = "Profissional";
-  bool isAdmin = false; // Controle de acesso (Dono vs Funcionário)
+  bool isAdmin = false;
+  bool _isNotifying = false; // Controle de loading do Zap
   final String uid = FirebaseAuth.instance.currentUser!.uid;
 
   @override
@@ -32,12 +35,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _loadBusinessInfo();
   }
 
-  // Verifica se o usuário logado é o DONO do atelier
+  // Busca se é Dono ou Funcionário e personaliza o painel
   _loadBusinessInfo() async {
     var doc = await FirebaseFirestore.instance.collection('ateliers').doc(uid).get();
     
     if (doc.exists) {
-      // Se o documento existe na coleção 'ateliers', ele é o PROPRIETÁRIO
       if (mounted) {
         setState(() {
           businessName = doc.data()?['nome_negocio'] ?? "Meu Negócio";
@@ -46,7 +48,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         });
       }
     } else {
-      // Se não existe, ele é um FUNCIONÁRIO logado
       if (mounted) {
         setState(() {
           businessName = "Painel de Atendimento";
@@ -57,20 +58,41 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  // --- FUNÇÃO PARA DISPARAR O WHATSAPP VIA VERCEL ---
+  Future<void> _sendWhatsAppNotification(QueueItem item) async {
+    try {
+      // Pega o zap do cliente no documento da fila
+      var clientDoc = await FirebaseFirestore.instance.collection('fila_virtual').doc(item.id).get();
+      String phone = clientDoc.data()?['cliente_zap'] ?? "";
+
+      if (phone.isNotEmpty) {
+        // Altere para a URL oficial do seu projeto na Vercel
+        final url = Uri.parse('https://zap-estilo-v2.vercel.app/api/send-message');
+        
+        await http.post(
+          url,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "phone": phone,
+            "message": "Olá ${item.clientName}, sua vez chegou no $businessName! ✂️\nEstamos te esperando na cadeira.",
+          }),
+        );
+      }
+    } catch (e) {
+      debugPrint("Erro ao notificar WhatsApp: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
       appBar: _buildAppBar(),
       
-      // BOTÃO FLUTUANTE: Disponível para Admin e Staff
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFF2CA50),
         onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const WalkInRegistrationPage()),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const WalkInRegistrationPage()));
         },
         icon: const Icon(Icons.person_add, color: Colors.black),
         label: const Text("NOVO CLIENTE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -97,10 +119,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 const SizedBox(height: 32),
                 
                 _buildSectionTitle("ATENDIMENTO ATUAL"),
-                inService.isNotEmpty 
-                  ? _buildCurrentClientCard(inService.first) 
-                  : _buildEmptyChairCard(),
-
+                inService.isNotEmpty ? _buildCurrentClientCard(inService.first) : _buildEmptyChairCard(),
+                
                 const SizedBox(height: 32),
                 
                 _buildSectionTitle("FILA DE ESPERA"),
@@ -113,14 +133,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                 ),
 
-                // BOTÃO DE CHAMADA: Só aparece se a cadeira estiver vazia
+                // BOTÃO DE CHAMADA COM NOTIFICAÇÃO ZAP
                 if (waiting.isNotEmpty && inService.isEmpty)
                   _buildCallNextButton(waiting.first),
                 
                 const SizedBox(height: 12),
-                
                 _buildShareLinkButton(),
-                
                 const SizedBox(height: 80),
               ],
             ),
@@ -130,140 +148,60 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // --- CABEÇALHO COM TRAVA DE SEGURANÇA ---
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
       automaticallyImplyLeading: false, 
-      
       title: Image.network(
         'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
         height: 45,
-        errorBuilder: (context, error, stackTrace) => Text(businessName.toUpperCase(), 
-          style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 12)),
+        errorBuilder: (context, error, stackTrace) => const Text("ESTILO EXATO"),
       ),
-      
       actions: [
-        // 📊 BOTÃO DE ESTATÍSTICAS: Só aparece para o DONO (isAdmin)
-        if (isAdmin)
-          IconButton(
-            icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)),
-            tooltip: 'Faturamento',
-            onPressed: () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()));
-            },
-          ),
-        
-        // ⚙️ BOTÃO DE CONFIGURAÇÕES: Só aparece para o DONO (isAdmin)
-        if (isAdmin)
-          IconButton(
-            icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)),
-            tooltip: 'Gerenciar Atelier',
-            onPressed: () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
-            },
-          ),
-
-        // 🚪 SAIR DA CONTA: Para todos
-        IconButton(
-          icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22),
-          onPressed: () async {
-            await FirebaseAuth.instance.signOut();
-          },
-        ),
+        if (isAdmin) IconButton(icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()))),
+        if (isAdmin) IconButton(icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()))),
+        IconButton(icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22), onPressed: () => FirebaseAuth.instance.signOut()),
         const SizedBox(width: 8),
       ],
     );
   }
 
-  Widget _buildHeader(int count) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(isAdmin ? "PAINEL ADMINISTRATIVO" : "PAINEL DE ATENDIMENTO", 
-          style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)),
-        Text("$count na espera", 
-          style: GoogleFonts.manrope(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white)),
-      ],
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(title, style: GoogleFonts.workSans(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-    );
-  }
-
-  Widget _buildCurrentClientCard(QueueItem item) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.clientName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            Text(item.service.toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold)),
-          ]),
-          ElevatedButton(
-            onPressed: () => _showFinishDialog(item),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text("FINALIZAR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyChairCard() {
-    return Container(
-      width: double.infinity, padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(border: Border.all(color: Colors.white10), borderRadius: BorderRadius.circular(16)),
-      child: const Center(child: Text("CADEIRA DISPONÍVEL", style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold, fontSize: 12))),
-    );
-  }
-
-  Widget _buildWaitingItem(QueueItem item, int pos) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          Text("#$pos", style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(width: 16),
-          Expanded(child: Text(item.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
-          const Icon(Icons.chat_bubble_outline, color: Color(0xFFF2CA50), size: 16),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCallNextButton(QueueItem item) {
     return SizedBox(
-      width: double.infinity, height: 60,
+      width: double.infinity, height: 65,
       child: ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
-        onPressed: () => _repository.callNext(item.id),
-        child: Text("CHAMAR ${item.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFF2CA50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onPressed: _isNotifying ? null : () async {
+          setState(() => _isNotifying = true);
+          
+          // 1. Manda o Zap
+          await _sendWhatsAppNotification(item);
+          
+          // 2. Chama no banco
+          await _repository.callNext(item.id);
+          
+          if(mounted) setState(() => _isNotifying = false);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("WhatsApp enviado para ${item.clientName}!")));
+        },
+        child: _isNotifying 
+          ? const CircularProgressIndicator(color: Colors.black)
+          : Text("CHAMAR ${item.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
       ),
     );
   }
 
-  Widget _buildShareLinkButton() {
-    return TextButton.icon(
-      onPressed: () => Share.share("Olá! Entre na minha fila virtual do EstiloExatoZap aqui: https://estiloexatozap.web.app/#/fila/$uid"),
-      icon: const Icon(Icons.share, color: Color(0xFFF2CA50), size: 18),
-      label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70, fontSize: 12)),
-    );
-  }
+  // --- OUTROS WIDGETS AUXILIARES ---
+  Widget _buildHeader(int count) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(isAdmin ? "PAINEL ADMINISTRATIVO" : "PAINEL DA EQUIPE", style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)), Text("$count na espera", style: GoogleFonts.manrope(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white))]);
+  Widget _buildSectionTitle(String title) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(title, style: GoogleFonts.workSans(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)));
+  Widget _buildCurrentClientCard(QueueItem item) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.clientName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), Text(item.service.toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold))]), ElevatedButton(onPressed: () => _showFinishDialog(item), style: ElevatedButton.styleFrom(backgroundColor: Colors.green), child: const Text("FINALIZAR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))]));
+  Widget _buildEmptyChairCard() => Container(width: double.infinity, padding: const EdgeInsets.all(32), decoration: BoxDecoration(border: Border.all(color: Colors.white10, style: BorderStyle.solid), borderRadius: BorderRadius.circular(16)), child: const Center(child: Text("CADEIRA DISPONÍVEL", style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold, fontSize: 12))));
+  Widget _buildWaitingItem(QueueItem item, int pos) => Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(12)), child: Row(children: [Text("#$pos", style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(width: 16), Expanded(child: Text(item.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))), const Icon(Icons.chat_bubble_outline, color: Color(0xFFF2CA50), size: 16)]));
+  Widget _buildShareLinkButton() => TextButton.icon(onPressed: () => Share.share("Olá! Entre na minha fila virtual aqui: https://zap-estilo-v2.vercel.app/#/fila/$uid"), icon: const Icon(Icons.share, color: Color(0xFFF2CA50), size: 18), label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70, fontSize: 12)));
 
   void _showFinishDialog(QueueItem item) {
     double valorFinal = 50.0;
@@ -274,7 +212,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         title: Text("Finalizar Atendimento", style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
               keyboardType: TextInputType.number,

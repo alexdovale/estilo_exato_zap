@@ -14,14 +14,41 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  // --- FUNÇÃO PARA RECUPERAR SENHA VIA FIREBASE ---
+  Future<void> _recoverPassword() async {
+    if (_emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Digite seu e-mail para receber o link de recuperação.")),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
+      if (mounted) {
+        _showSuccessDialog("E-mail enviado!", "Verifique sua caixa de entrada para redefinir sua senha.");
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro: Verifique se o e-mail está correto.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
+      // --- 1. BOTÃO DE VOLTAR NO TOPO ---
       appBar: AppBar(
         backgroundColor: Colors.transparent, 
         elevation: 0, 
-        leading: const BackButton(color: Color(0xFFF2CA50)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFFF2CA50), size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
@@ -31,7 +58,7 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
             Center(
               child: Image.network(
                 'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png', 
-                height: 60,
+                height: 80,
                 errorBuilder: (context, error, stackTrace) => const SizedBox(),
               ),
             ),
@@ -40,20 +67,30 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(color: const Color(0xFFF2CA50).withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-              child: const Text("ACESSO DA EQUIPE", style: TextStyle(color: Color(0xFFF2CA50), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+              child: const Text("ACESSO AO PAINEL", style: TextStyle(color: Color(0xFFF2CA50), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
             ),
             const SizedBox(height: 16),
             
             Text("Bem-vindo de volta", style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(height: 8),
-            Text("Acesse seu painel para gerenciar a fila e seus atendimentos de hoje.", style: GoogleFonts.workSans(color: Colors.white54)),
             const SizedBox(height: 40),
             
-            _buildInput("E-MAIL PROFISSIONAL", "barbeiro@atelier.com", _emailController, Icons.email_outlined),
+            _buildInput("E-MAIL PROFISSIONAL", "voce@email.com", _emailController, Icons.email_outlined),
             const SizedBox(height: 20),
             _buildInput("SENHA", "••••••••", _passwordController, Icons.lock_outline, isPassword: true),
             
-            const SizedBox(height: 40),
+            // --- 2. LINK DE RECUPERAR SENHA ---
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _recoverPassword,
+                child: const Text(
+                  "Esqueceu sua senha?", 
+                  style: TextStyle(color: Color(0xFFF2CA50), fontSize: 12, decoration: TextDecoration.underline),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 32),
             SizedBox(
               width: double.infinity, height: 60,
               child: ElevatedButton(
@@ -100,13 +137,26 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
         password: _passwordController.text.trim(),
       );
       if (mounted) {
-        // Volta para o main.dart, onde o SubscriptionGuard enviará o funcionário pro Dashboard
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erro: Email ou senha incorretos.", style: TextStyle(color: Colors.white)), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email ou senha incorretos.")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showSuccessDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1B),
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        content: Text(message, style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK", style: TextStyle(color: Color(0xFFF2CA50))))
+        ],
+      ),
+    );
   }
 }
