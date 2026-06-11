@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'team_management_page.dart';
 import 'service_menu_page.dart'; // <-- AGORA IMPORTADO
 import '../reports/finance_report_page.dart';
+import 'plans_management_page.dart'; // <-- NOVO IMPORT ADICIONADO AQUI
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -75,6 +76,11 @@ class ProfilePage extends StatelessWidget {
                 // 3. EDITAR MENU DE SERVIÇOS
                 _buildMenuOption(Icons.restaurant_menu_outlined, "Editar Menu de Serviços", () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const ServiceMenuPage()));
+                }),
+
+                // 4. PLANOS DE ASSINATURA (NOVO BOTÃO ADICIONADO AQUI)
+                _buildMenuOption(Icons.card_membership_outlined, "Planos de Assinatura", () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansManagementPage()));
                 }),
 
                 const SizedBox(height: 40),
