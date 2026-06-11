@@ -67,7 +67,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       if (phone.isNotEmpty) {
         // Altere para a URL oficial do seu projeto na Vercel
-        final url = Uri.parse('https://zap-estilo-v2.vercel.app/api/send-message');
+        final url = Uri.parse('https://estilo-exato-zap.vercel.app/api/send-message');
         
         await http.post(
           url,
