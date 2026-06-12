@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:http/http.dart' as http; // Requer: flutter pub add http
 import 'dart:convert';
 
+
 import '../../data/repositories/queue_repository.dart';
 import '../../data/models/queue_item.dart';
 
@@ -197,42 +198,127 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // --- OUTROS WIDGETS AUXILIARES ---
   Widget _buildHeader(int count) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(isAdmin ? "PAINEL ADMINISTRATIVO" : "PAINEL DA EQUIPE", style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)), Text("$count na espera", style: GoogleFonts.manrope(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white))]);
+  
   Widget _buildSectionTitle(String title) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(title, style: GoogleFonts.workSans(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)));
+  
   Widget _buildCurrentClientCard(QueueItem item) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.clientName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), Text(item.service.toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold))]), ElevatedButton(onPressed: () => _showFinishDialog(item), style: ElevatedButton.styleFrom(backgroundColor: Colors.green), child: const Text("FINALIZAR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))]));
+  
   Widget _buildEmptyChairCard() => Container(width: double.infinity, padding: const EdgeInsets.all(32), decoration: BoxDecoration(border: Border.all(color: Colors.white10, style: BorderStyle.solid), borderRadius: BorderRadius.circular(16)), child: const Center(child: Text("CADEIRA DISPONÍVEL", style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold, fontSize: 12))));
+  
   Widget _buildWaitingItem(QueueItem item, int pos) => Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(12)), child: Row(children: [Text("#$pos", style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(width: 16), Expanded(child: Text(item.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))), const Icon(Icons.chat_bubble_outline, color: Color(0xFFF2CA50), size: 16)]));
+  
   Widget _buildShareLinkButton() => TextButton.icon(onPressed: () => Share.share("Olá! Entre na minha fila virtual aqui: https://zap-estilo-v2.vercel.app/#/fila/$uid"), icon: const Icon(Icons.share, color: Color(0xFFF2CA50), size: 18), label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70, fontSize: 12)));
 
   void _showFinishDialog(QueueItem item) {
-    double valorFinal = 50.0;
+    double valorServico = 50.0; // Valor padrão
+    double valorProdutos = 0.0;
+    double valorRecebido = 0.0;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1B),
-        title: Text("Finalizar Atendimento", style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(prefixText: "R\$ "),
-              onChanged: (v) => valorFinal = double.tryParse(v) ?? 0.0,
+      builder: (context) => StatefulBuilder( // StatefulBuilder para atualizar o modal internamente
+        builder: (context, setModalState) {
+          double totalGeral = valorServico + valorProdutos;
+          double troco = valorRecebido > totalGeral ? valorRecebido - totalGeral : 0.0;
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1C1C1B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text("Finalizar Atendimento", style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Cliente: ${item.clientName}", style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                  const Divider(color: Colors.white10, height: 30),
+                  
+                  // --- SEÇÃO DE VALORES ---
+                  const Text("VALOR DO SERVIÇO", style: TextStyle(color: Color(0xFFF2CA50), fontSize: 9, fontWeight: FontWeight.bold)),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(prefixText: "R\$ ", isDense: true),
+                    onChanged: (v) => setModalState(() => valorServico = double.tryParse(v) ?? 0.0),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // --- VENDA DE PRODUTOS (UPSELL) ---
+                  const Text("ADICIONAR PRODUTOS", style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _productChip("Pomada", 35.0, (val) => setModalState(() => valorProdutos += val)),
+                      const SizedBox(width: 8),
+                      _productChip("Óleo", 25.0, (val) => setModalState(() => valorProdutos += val)),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // --- TOTAL E RECEBIMENTO ---
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("TOTAL A PAGAR:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text("R\$ ${totalGeral.toStringAsFixed(2)}", 
+                          style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 20, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // --- CÁLCULO DE TROCO ---
+                  const Text("VALOR RECEBIDO (DINHEIRO)", style: TextStyle(color: Colors.white38, fontSize: 9)),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white, fontSize: 18),
+                    decoration: const InputDecoration(hintText: "Quanto o cliente te deu?", hintStyle: TextStyle(color: Colors.white10)),
+                    onChanged: (v) => setModalState(() => valorRecebido = double.tryParse(v) ?? 0.0),
+                  ),
+                  
+                  if (troco > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text("TROCO: R\$ ${troco.toStringAsFixed(2)}", 
+                        style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                ],
+              ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR", style: TextStyle(color: Colors.white24))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
-            onPressed: () async {
-              await _repository.finishAndRecordTransaction(ticketId: item.id, clientName: item.clientName, serviceName: item.service, value: valorFinal);
-              if (mounted) Navigator.pop(context);
-            },
-            child: const Text("RECEBER", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR", style: TextStyle(color: Colors.white24))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
+                onPressed: () async {
+                  await _repository.finishAndRecordTransaction(
+                    ticketId: item.id, 
+                    clientName: item.clientName, 
+                    serviceName: "${item.service} + Produtos", 
+                    value: totalGeral
+                  );
+                  if (mounted) Navigator.pop(context);
+                },
+                child: const Text("CONCLUIR E RECEBER", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        }
       ),
+    );
+  }
+
+  // Widget auxiliar para os botões de produtos
+  Widget _productChip(String label, double price, Function(double) onAdd) {
+    return ActionChip(
+      backgroundColor: Colors.white.withOpacity(0.05),
+      label: Text("$label +R\$$price", style: const TextStyle(color: Colors.white, fontSize: 10)),
+      onPressed: () => onAdd(price),
     );
   }
 }
