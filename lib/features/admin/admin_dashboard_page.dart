@@ -185,31 +185,28 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildCallNextButton(QueueItem item) {
     return SizedBox(
-      width: double.infinity, 
-      height: 65,
+      width: double.infinity, height: 60,
       child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFF2CA50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
         onPressed: _isNotifying ? null : () async {
           setState(() => _isNotifying = true);
           
-          // 1. Manda o Zap
-          await _sendWhatsAppNotification(item);
-          
-          // 2. Chama no banco
+          // 1. Busca o telefone do cliente no Firestore antes de chamar
+          var doc = await FirebaseFirestore.instance.collection('fila_virtual').doc(item.id).get();
+          String phone = doc.data()?['cliente_zap'] ?? "";
+
+          // 2. Dispara o WhatsApp
+          if (phone.isNotEmpty) {
+            await _repository.notifyClient(phone, item.clientName, businessName);
+          }
+
+          // 3. Move o cliente para a cadeira
           await _repository.callNext(item.id);
           
-          if (mounted) {
-            setState(() => _isNotifying = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("WhatsApp enviado para ${item.clientName}!"), backgroundColor: Colors.green)
-            );
-          }
+          if(mounted) setState(() => _isNotifying = false);
         },
         child: _isNotifying 
-          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+          ? const CircularProgressIndicator(color: Colors.black)
           : Text("CHAMAR ${item.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
       ),
     );

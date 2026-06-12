@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 import '../models/queue_item.dart';
 
 class QueueRepository {
@@ -66,5 +69,23 @@ class QueueRepository {
     });
     
     await batch.commit();
+  }
+
+  // 5. NOTIFICAR CLIENTE (Z-API)
+  Future<void> notifyClient(String phone, String name, String atelierName) async {
+    // Substitua pelos dados da sua conta Z-API
+    final String instanceId = "SUA_INSTANCE_ID"; 
+    final String token = "SEU_TOKEN_API";
+
+    final url = Uri.parse('https://api.z-api.io/instances/$instanceId/token/$token/send-text');
+
+    await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "phone": phone,
+        "message": "Olá $name! O seu barbeiro no *$atelierName* está pronto. Pode se dirigir à recepção agora! ✂️",
+      }),
+    );
   }
 }
