@@ -1,12 +1,12 @@
 // api/webhooks/mercadopago.js
 const admin = require('firebase-admin');
 
+// Inicialize o admin caso não esteja inicializado
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
   });
 }
-
 const db = admin.firestore();
 
 export default async function handler(req, res) {
