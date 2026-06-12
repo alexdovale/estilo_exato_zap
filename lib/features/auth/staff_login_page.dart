@@ -14,26 +14,23 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  // --- FUNÇÃO PARA RECUPERAR SENHA VIA FIREBASE ---
+  // --- FUNÇÃO PARA RECUPERAR SENHA (FIREBASE) ---
   Future<void> _recoverPassword() async {
-    if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Digite seu e-mail para receber o link de recuperação.")),
-      );
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      _showSnackBar("Por favor, digite seu e-mail acima para recuperar a senha.", Colors.orange);
       return;
     }
 
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: _emailController.text.trim(),
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      _showSuccessDialog(
+        "Link Enviado!",
+        "Um link de recuperação foi enviado para $email. Verifique sua caixa de entrada ou spam."
       );
-      if (mounted) {
-        _showSuccessDialog("E-mail enviado!", "Verifique sua caixa de entrada para redefinir sua senha.");
-      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erro: Verifique se o e-mail está correto.")),
-      );
+      _showSnackBar("Erro: Verifique se o e-mail está correto.", Colors.redAccent);
     }
   }
 
@@ -41,7 +38,6 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
-      // --- 1. BOTÃO DE VOLTAR NO TOPO ---
       appBar: AppBar(
         backgroundColor: Colors.transparent, 
         elevation: 0, 
@@ -51,7 +47,7 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+        padding: const EdgeInsets.all(32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -64,28 +60,24 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
             ),
             const SizedBox(height: 40),
             
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0xFFF2CA50).withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-              child: const Text("ACESSO AO PAINEL", style: TextStyle(color: Color(0xFFF2CA50), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-            ),
-            const SizedBox(height: 16),
-            
-            Text("Bem-vindo de volta", style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text("Acesso à Equipe", 
+              style: GoogleFonts.manrope(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white)),
+            const Text("Gerencie seu atelier no tempo exato.", 
+              style: TextStyle(color: Colors.white54)),
             const SizedBox(height: 40),
             
             _buildInput("E-MAIL PROFISSIONAL", "voce@email.com", _emailController, Icons.email_outlined),
             const SizedBox(height: 20),
-            _buildInput("SENHA", "••••••••", _passwordController, Icons.lock_outline, isPassword: true),
+            _buildInput("SUA SENHA", "••••••••", _passwordController, Icons.lock_outline, isPassword: true),
             
-            // --- 2. LINK DE RECUPERAR SENHA ---
+            // --- BOTÃO ESQUECI MINHA SENHA ---
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: _recoverPassword,
-                child: const Text(
-                  "Esqueceu sua senha?", 
-                  style: TextStyle(color: Color(0xFFF2CA50), fontSize: 12, decoration: TextDecoration.underline),
+                child: Text(
+                  "Esqueci minha senha", 
+                  style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 12, decoration: TextDecoration.underline),
                 ),
               ),
             ),
@@ -96,12 +88,12 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFF2CA50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _isLoading ? null : _login,
                 child: _isLoading 
                   ? const CircularProgressIndicator(color: Colors.black)
-                  : const Text("ACESSAR SISTEMA", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  : const Text("ACESSAR PAINEL", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1)),
               ),
             ),
           ],
@@ -122,7 +114,7 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
             prefixIcon: Icon(icon, color: const Color(0xFFF2CA50), size: 18),
             hintText: hint, hintStyle: const TextStyle(color: Colors.white10), 
             filled: true, fillColor: const Color(0xFF1C1C1B), 
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none)
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)
           ),
         ),
       ],
@@ -136,14 +128,18 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email ou senha incorretos.")));
+      _showSnackBar("E-mail ou senha incorretos.", Colors.redAccent);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
   }
 
   void _showSuccessDialog(String title, String message) {
@@ -154,7 +150,8 @@ class _StaffLoginPageState extends State<StaffLoginPage> {
         title: Text(title, style: const TextStyle(color: Colors.white)),
         content: Text(message, style: const TextStyle(color: Colors.white70)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK", style: TextStyle(color: Color(0xFFF2CA50))))
+          TextButton(onPressed: () => Navigator.pop(context), 
+            child: const Text("ENTENDI", style: TextStyle(color: Color(0xFFF2CA50))))
         ],
       ),
     );
