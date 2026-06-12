@@ -21,14 +21,17 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
       appBar: AppBar(
-        title: Text("MINHA EQUIPE", style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
+        title: Text("MINHA EQUIPE", style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: const Color(0xFFF2CA50))),
         backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: const BackButton(color: Color(0xFFF2CA50)),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _repository.getTeamStream(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFFF2CA50)));
+          }
 
           final docs = snapshot.data!.docs;
 
@@ -36,7 +39,7 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
             padding: const EdgeInsets.all(24),
             children: [
               Text("Colaboradores Ativos", 
-                style: GoogleFonts.manrope(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                style: GoogleFonts.manrope(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white)),
               const SizedBox(height: 8),
               const Text("Gerencie quem tem acesso ao painel de atendimento.", style: TextStyle(color: Colors.white38)),
               const SizedBox(height: 32),
@@ -49,10 +52,11 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFF2CA50),
-        child: const Icon(Icons.add, color: Colors.black),
         onPressed: () => _showAddStaffModal(),
+        icon: const Icon(Icons.add, color: Colors.black),
+        label: const Text("NOVO MEMBRO", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -61,25 +65,25 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
     final data = doc.data() as Map<String, dynamic>;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1B),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: Row(
         children: [
           CircleAvatar(
             backgroundColor: const Color(0xFFF2CA50).withOpacity(0.1),
-            child: Text(data['nome'][0], style: const TextStyle(color: Color(0xFFF2CA50))),
+            child: Text(data['nome'][0].toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold)),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(data['nome'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                Text(data['cargo'], style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(data['nome'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(data['cargo'].toString().toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
               ],
             ),
           ),
@@ -98,33 +102,37 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1C1C1B),
       builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("NOVO COLABORADOR", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: Colors.white)),
+            Text("NOVO COLABORADOR", style: GoogleFonts.manrope(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
             const SizedBox(height: 24),
-            TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Nome Completo")),
-            TextField(controller: _emailController, decoration: const InputDecoration(labelText: "E-mail de Acesso")),
+            _buildModalInput("Nome Completo", _nameController),
+            _buildModalInput("E-mail de Acesso", _emailController),
             const SizedBox(height: 16),
-            DropdownButton<String>(
+            DropdownButtonFormField<String>(
               value: _selectedRole,
-              isExpanded: true,
               dropdownColor: const Color(0xFF1C1C1B),
               style: const TextStyle(color: Colors.white),
-              items: ['Barbeiro', 'Manicure', 'Extensionista', 'Recepcionista'].map((role) => DropdownMenuItem(value: role, child: Text(role))).toList(),
+              decoration: const InputDecoration(labelText: "Cargo", labelStyle: TextStyle(color: Colors.white38)),
+              items: ['Barbeiro', 'Manicure', 'Extensionista', 'Recepcionista'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
               onChanged: (v) => setState(() => _selectedRole = v!),
             ),
             const SizedBox(height: 32),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50), minimumSize: const Size(double.infinity, 50)),
-              onPressed: () async {
-                await _repository.addStaffMember(name: _nameController.text, email: _emailController.text, role: _selectedRole);
-                Navigator.pop(context);
-                _nameController.clear();
-                _emailController.clear();
-              },
-              child: const Text("CADASTRAR", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            SizedBox(
+              width: double.infinity, height: 60,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50)),
+                onPressed: () async {
+                  await _repository.addStaffMember(name: _nameController.text, email: _emailController.text, role: _selectedRole);
+                  if(mounted) Navigator.pop(context);
+                  _nameController.clear();
+                  _emailController.clear();
+                },
+                child: const Text("CADASTRAR", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
             ),
             const SizedBox(height: 32),
           ],
@@ -133,7 +141,25 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
     );
   }
 
+  Widget _buildModalInput(String label, TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+          enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white10)),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
-    return const Center(child: Text("Nenhum colaborador cadastrado.", style: TextStyle(color: Colors.white24)));
+    return const Center(child: Padding(
+      padding: EdgeInsets.only(top: 100),
+      child: Text("Nenhum colaborador cadastrado.", style: TextStyle(color: Colors.white24)),
+    ));
   }
 }

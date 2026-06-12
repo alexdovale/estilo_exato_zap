@@ -6,11 +6,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:http/http.dart' as http; // Requer: flutter pub add http
 import 'dart:convert';
 
-
 import '../../data/repositories/queue_repository.dart';
 import '../../data/models/queue_item.dart';
 
 // Importações das telas
+import 'comanda_page.dart';
 import 'walk_in_registration_page.dart';
 import 'profile_page.dart';
 import '../reports/finance_report_page.dart';
@@ -158,12 +158,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       title: Image.network(
         'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
         height: 45,
-        errorBuilder: (context, error, stackTrace) => const Text("ESTILO EXATO"),
+        errorBuilder: (context, error, stackTrace) => Text(
+          businessName.toUpperCase(), 
+          style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 12)
+        ),
       ),
       actions: [
-        if (isAdmin) IconButton(icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()))),
-        if (isAdmin) IconButton(icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()))),
-        IconButton(icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22), onPressed: () => FirebaseAuth.instance.signOut()),
+        if (isAdmin) 
+          IconButton(
+            icon: const Icon(Icons.bar_chart_rounded, color: Color(0xFFF2CA50)), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceReportPage()))
+          ),
+        if (isAdmin) 
+          IconButton(
+            icon: const Icon(Icons.settings, color: Color(0xFFF2CA50)), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()))
+          ),
+        IconButton(
+          icon: const Icon(Icons.logout, color: Colors.redAccent, size: 22), 
+          onPressed: () => FirebaseAuth.instance.signOut()
+        ),
         const SizedBox(width: 8),
       ],
     );
@@ -171,7 +185,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildCallNextButton(QueueItem item) {
     return SizedBox(
-      width: double.infinity, height: 65,
+      width: double.infinity, 
+      height: 65,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFF2CA50),
@@ -186,28 +201,116 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           // 2. Chama no banco
           await _repository.callNext(item.id);
           
-          if(mounted) setState(() => _isNotifying = false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("WhatsApp enviado para ${item.clientName}!")));
+          if (mounted) {
+            setState(() => _isNotifying = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("WhatsApp enviado para ${item.clientName}!"), backgroundColor: Colors.green)
+            );
+          }
         },
         child: _isNotifying 
-          ? const CircularProgressIndicator(color: Colors.black)
+          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
           : Text("CHAMAR ${item.clientName.toUpperCase()}", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
       ),
     );
   }
 
   // --- OUTROS WIDGETS AUXILIARES ---
-  Widget _buildHeader(int count) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(isAdmin ? "PAINEL ADMINISTRATIVO" : "PAINEL DA EQUIPE", style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)), Text("$count na espera", style: GoogleFonts.manrope(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white))]);
   
-  Widget _buildSectionTitle(String title) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(title, style: GoogleFonts.workSans(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)));
+  Widget _buildHeader(int count) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start, 
+      children: [
+        Text(
+          isAdmin ? "PAINEL ADMINISTRATIVO" : "PAINEL DA EQUIPE", 
+          style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold)
+        ), 
+        Text(
+          "$count na espera", 
+          style: GoogleFonts.manrope(fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white)
+        )
+      ]
+    );
+  }
   
-  Widget _buildCurrentClientCard(QueueItem item) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.clientName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), Text(item.service.toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold))]), ElevatedButton(onPressed: () => _showFinishDialog(item), style: ElevatedButton.styleFrom(backgroundColor: Colors.green), child: const Text("FINALIZAR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)))]));
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12), 
+      child: Text(
+        title, 
+        style: GoogleFonts.workSans(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)
+      )
+    );
+  }
   
-  Widget _buildEmptyChairCard() => Container(width: double.infinity, padding: const EdgeInsets.all(32), decoration: BoxDecoration(border: Border.all(color: Colors.white10, style: BorderStyle.solid), borderRadius: BorderRadius.circular(16)), child: const Center(child: Text("CADEIRA DISPONÍVEL", style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold, fontSize: 12))));
+  Widget _buildCurrentClientCard(QueueItem item) {
+    return Container(
+      padding: const EdgeInsets.all(20), 
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1B), 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3))
+      ), 
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start, 
+            children: [
+              Text(item.clientName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), 
+              Text(item.service.toUpperCase(), style: const TextStyle(color: Color(0xFFF2CA50), fontSize: 11, fontWeight: FontWeight.bold))
+            ]
+          ), 
+          ElevatedButton(
+            onPressed: () => _showFinishDialog(item), 
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green), 
+            child: const Text("FINALIZAR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white))
+          )
+        ]
+      )
+    );
+  }
   
-  Widget _buildWaitingItem(QueueItem item, int pos) => Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF1C1C1B), borderRadius: BorderRadius.circular(12)), child: Row(children: [Text("#$pos", style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(width: 16), Expanded(child: Text(item.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))), const Icon(Icons.chat_bubble_outline, color: Color(0xFFF2CA50), size: 16)]));
+  Widget _buildEmptyChairCard() {
+    return Container(
+      width: double.infinity, 
+      padding: const EdgeInsets.all(32), 
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.white10, style: BorderStyle.solid), 
+        borderRadius: BorderRadius.circular(16)
+      ), 
+      child: const Center(
+        child: Text("CADEIRA DISPONÍVEL", style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold, fontSize: 12))
+      )
+    );
+  }
   
-  Widget _buildShareLinkButton() => TextButton.icon(onPressed: () => Share.share("Olá! Entre na minha fila virtual aqui: https://zap-estilo-v2.vercel.app/#/fila/$uid"), icon: const Icon(Icons.share, color: Color(0xFFF2CA50), size: 18), label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70, fontSize: 12)));
+  Widget _buildWaitingItem(QueueItem item, int pos) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12), 
+      padding: const EdgeInsets.all(16), 
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1B), 
+        borderRadius: BorderRadius.circular(12)
+      ), 
+      child: Row(
+        children: [
+          Text("#$pos", style: const TextStyle(color: Color(0xFFF2CA50), fontWeight: FontWeight.bold, fontSize: 16)), 
+          const SizedBox(width: 16), 
+          Expanded(child: Text(item.clientName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))), 
+          const Icon(Icons.chat_bubble_outline, color: Color(0xFFF2CA50), size: 16)
+        ]
+      )
+    );
+  }
+  
+  Widget _buildShareLinkButton() {
+    return TextButton.icon(
+      onPressed: () => Share.share("Olá! Entre na minha fila virtual aqui: https://estilo-exato-zap.vercel.app/#/fila/$uid"), 
+      icon: const Icon(Icons.share, color: Color(0xFFF2CA50), size: 18), 
+      label: const Text("COMPARTILHAR LINK DA FILA", style: TextStyle(color: Colors.white70, fontSize: 12))
+    );
+  }
 
   void _showFinishDialog(QueueItem item) {
     double valorServico = 50.0; // Valor padrão
@@ -238,7 +341,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   TextField(
                     keyboardType: TextInputType.number,
                     style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                    decoration: const InputDecoration(prefixText: "R\$ ", isDense: true),
+                    decoration: const InputDecoration(prefixText: "R\$ ", isDense: true, hintText: "50.00", hintStyle: TextStyle(color: Colors.white10)),
                     onChanged: (v) => setModalState(() => valorServico = double.tryParse(v) ?? 0.0),
                   ),
                   

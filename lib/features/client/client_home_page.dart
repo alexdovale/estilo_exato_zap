@@ -9,48 +9,96 @@ class ClientHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Pega o usuário logado para buscar os pontos e o nome
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Image.network('https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png', height: 40),
+        elevation: 0,
         centerTitle: true,
-        actions: [IconButton(onPressed: () => FirebaseAuth.instance.signOut(), icon: const Icon(Icons.logout))],
+        // Logo oficial carregada da rede
+        title: Image.network(
+          'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
+          height: 40,
+          errorBuilder: (context, error, stackTrace) => const Text("ESTILO EXATO"),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white24, size: 20),
+            onPressed: () => FirebaseAuth.instance.signOut(),
+          )
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
+        // Ouve em tempo real os dados do cliente (pontos, nome, etc)
         stream: FirebaseFirestore.instance.collection('clientes').doc(user?.uid).snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFFF2CA50)));
+          }
+
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const Center(
+              child: Text("Erro ao carregar seu perfil. Tente logar novamente.", 
+                style: TextStyle(color: Colors.white54))
+            );
+          }
+
           var clientData = snapshot.data!.data() as Map<String, dynamic>;
+          String nome = clientData['nome'] ?? 'Cliente';
+          int pontos = clientData['pontos'] ?? 0;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("OLÁ, ${clientData['nome'].toString().toUpperCase()}", 
-                  style: GoogleFonts.workSans(color: const Color(0xFFF2CA50), fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 10)),
-                Text("Bem-vindo ao Atelier", style: GoogleFonts.manrope(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white)),
+                // SAUDAÇÃO
+                Text("BEM-VINDO,", 
+                  style: GoogleFonts.workSans(
+                    color: const Color(0xFFF2CA50), 
+                    fontWeight: FontWeight.bold, 
+                    letterSpacing: 2, 
+                    fontSize: 10
+                  ),
+                ),
+                Text(nome.split(' ')[0].toUpperCase(), 
+                  style: GoogleFonts.manrope(
+                    fontSize: 32, 
+                    fontWeight: FontWeight.w900, 
+                    color: Colors.white,
+                    height: 1.1
+                  ),
+                ),
                 
                 const SizedBox(height: 32),
                 
-                // --- CARTÃO FIDELIDADE ---
-                _buildLoyaltyCard(clientData['pontos'] ?? 0),
+                // --- SEÇÃO: CARTÃO FIDELIDADE ---
+                _buildLoyaltyCard(pontos),
                 
-                const SizedBox(height: 40),
+                const SizedBox(height: 48),
                 
-                // --- BOTÃO DE ENTRAR NA FILA ---
-                SizedBox(
-                  width: double.infinity,
-                  height: 80,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                    onPressed: () => _joinQueue(context, clientData['nome']),
-                    child: const Text("ENTRAR NA FILA AGORA", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+                // --- SEÇÃO: AÇÃO DE ATENDIMENTO ---
+                Text("ATENDIMENTO DISPONÍVEL", 
+                  style: GoogleFonts.workSans(
+                    color: Colors.white38, 
+                    fontSize: 10, 
+                    fontWeight: FontWeight.bold, 
+                    letterSpacing: 1.5
                   ),
                 ),
+                const SizedBox(height: 16),
+                _buildJoinQueueButton(context, nome, user?.uid),
+                
+                const SizedBox(height: 60),
+                const Center(
+                  child: Opacity(
+                    opacity: 0.2,
+                    child: Text("EstiloExatoZap v1.0", style: TextStyle(color: Colors.white, fontSize: 10)),
+                  ),
+                )
               ],
             ),
           );
@@ -59,49 +107,127 @@ class ClientHomePage extends StatelessWidget {
     );
   }
 
+  // Widget do Cartão de Selos (Loyalty)
   Widget _buildLoyaltyCard(int points) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF1C1C1B), Color(0xFF000000)]),
+        color: const Color(0xFF1C1C1B),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.1)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20)],
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("CARTÃO FIDELIDADE", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
-              Icon(Icons.star, color: const Color(0xFFF2CA50), size: 16),
+              const Text("MEUS PONTOS ACUMULADOS", 
+                style: TextStyle(color: Color(0xFFF2CA50), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+              const Icon(Icons.stars_rounded, color: Color(0xFFF2CA50), size: 18),
             ],
           ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(10, (index) => Icon(
-              index < points ? Icons.check_circle : Icons.circle_outlined,
-              color: index < points ? const Color(0xFFF2CA50) : Colors.white10,
-              size: 24,
-            )),
+          const SizedBox(height: 24),
+          // GRID DE 10 ÍCONES (2 linhas de 5)
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: List.generate(10, (index) {
+              bool isEarned = index < points;
+              return Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isEarned ? const Color(0xFFF2CA50) : Colors.white.withOpacity(0.03),
+                ),
+                child: Icon(
+                  isEarned ? Icons.check_rounded : Icons.circle_outlined,
+                  color: isEarned ? Colors.black : Colors.white10,
+                  size: 20,
+                ),
+              );
+            }),
           ),
-          const SizedBox(height: 20),
-          Text("${10 - points} visitas para o próximo corte grátis!", style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(height: 24),
+          Text(
+            points >= 10 
+              ? "PARABÉNS! VOCÊ GANHOU UM CORTE GRÁTIS!" 
+              : "Faltam ${10 - points} visitas para sua recompensa.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: points >= 10 ? const Color(0xFFF2CA50) : Colors.white60, 
+              fontSize: 13, 
+              fontWeight: FontWeight.bold
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _joinQueue(BuildContext context, String name) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    await FirebaseFirestore.instance.collection('fila_virtual').add({
-      'atelierId': atelierId,
-      'cliente_nome': name,
-      'cliente_uid': uid,
-      'status': 'waiting',
-      'timestamp': FieldValue.serverTimestamp(),
-      'ticket': 99,
-    });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Você entrou na fila!")));
+  // Botão Estilizado para entrar na fila
+  Widget _buildJoinQueueButton(BuildContext context, String nome, String? uid) {
+    return GestureDetector(
+      onTap: () async {
+        // Lógica para registrar o cliente na fila virtual do Atelier
+        await FirebaseFirestore.instance.collection('fila_virtual').add({
+          'atelierId': atelierId,
+          'cliente_nome': nome,
+          'cliente_uid': uid,
+          'status': 'waiting',
+          'timestamp': FieldValue.serverTimestamp(),
+          'ticket': 0, // O Admin atribui o número na chamada
+          'servico': 'Agendado pelo App',
+          'origem': 'app',
+        });
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Você entrou na fila! Fique de olho no WhatsApp."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF2CA50), Color(0xFFD4AF37)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFF2CA50).withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 8)
+            )
+          ],
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.bolt_rounded, color: Colors.black, size: 32),
+            const SizedBox(height: 8),
+            Text("ENTRAR NA FILA AGORA", 
+              style: GoogleFonts.manrope(
+                fontWeight: FontWeight.w900, 
+                color: Colors.black, 
+                fontSize: 18,
+                letterSpacing: 1
+              ),
+            ),
+            const Text("Toque para confirmar sua presença no local", 
+              style: TextStyle(color: Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
   }
 }

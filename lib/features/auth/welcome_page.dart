@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'register_page.dart';
-import 'login_page.dart'; // Esta tela servirá tanto para o Dono quanto para o Funcionário
+import 'staff_login_page.dart'; // Importação corrigida aqui
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -12,7 +12,6 @@ class WelcomePage extends StatelessWidget {
       backgroundColor: const Color(0xFF131313),
       body: Stack(
         children: [
-          // Efeito de luz dourada no fundo (Premium Glow)
           Positioned(
             top: -150, right: -100,
             child: Container(
@@ -23,7 +22,6 @@ class WelcomePage extends StatelessWidget {
               ),
             ),
           ),
-          
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -31,24 +29,17 @@ class WelcomePage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 60),
-                  
-                  // SUA LOGO OFICIAL VIA NETWORK (Para evitar erro de asset)
                   Image.network(
                     'https://raw.githubusercontent.com/alexdovale/estilo_exato_zap/main/COMPLETO.png',
                     height: 90,
-                    // Se a imagem falhar, mostra o ícone reserva
                     errorBuilder: (context, error, stackTrace) => const Icon(Icons.cut, color: Color(0xFFF2CA50), size: 60),
                   ),
-                  
                   const SizedBox(height: 16),
                   Text(
                     "O seu negócio no tempo exato.",
                     style: GoogleFonts.workSans(color: Colors.white54, fontSize: 14, fontStyle: FontStyle.italic),
                   ),
-                  
                   const Spacer(),
-                  
-                  // OPÇÃO 1: DONO DO NEGÓCIO (NOVO CADASTRO)
                   _buildOptionCard(
                     context,
                     title: "SOU PROPRIETÁRIO",
@@ -59,21 +50,18 @@ class WelcomePage extends StatelessWidget {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterPage()));
                     },
                   ),
-                  
                   const SizedBox(height: 16),
-                  
-                  // OPÇÃO 2: EQUIPE / FUNCIONÁRIOS (LOGIN)
                   _buildOptionCard(
                     context,
-                    title: "SOU DA EQUIPE / LOGIN",
-                    subtitle: "Acesse o painel do atelier com sua conta.",
-                    icon: Icons.badge_outlined, // Ícone de crachá para funcionários
+                    title: "JÁ TENHO CONTA",
+                    subtitle: "Sou funcionário ou já cadastrei meu atelier.",
+                    icon: Icons.badge_outlined,
                     isPrimary: false,
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                      // MUDANÇA AQUI: Agora abre a StaffLoginPage
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffLoginPage()));
                     },
                   ),
-                  
                   const SizedBox(height: 40),
                 ],
               ),
@@ -85,11 +73,7 @@ class WelcomePage extends StatelessWidget {
   }
 
   Widget _buildOptionCard(BuildContext context, {
-    required String title, 
-    required String subtitle, 
-    required IconData icon, 
-    required bool isPrimary, 
-    required VoidCallback onTap
+    required String title, required String subtitle, required IconData icon, required bool isPrimary, required VoidCallback onTap
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -98,8 +82,7 @@ class WelcomePage extends StatelessWidget {
         decoration: BoxDecoration(
           color: isPrimary ? const Color(0xFFF2CA50) : const Color(0xFF1C1C1B),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isPrimary ? Colors.transparent : const Color(0xFFF2CA50).withOpacity(0.3)),
-          boxShadow: isPrimary ? [BoxShadow(color: const Color(0xFFF2CA50).withOpacity(0.2), blurRadius: 20)] : [],
+          border: Border.all(color: const Color(0xFFF2CA50).withOpacity(0.3)),
         ),
         child: Row(
           children: [
@@ -117,7 +100,6 @@ class WelcomePage extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: isPrimary ? Colors.black54 : Colors.white24),
           ],
         ),
       ),

@@ -3,35 +3,38 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class SetupRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final String uid = FirebaseAuth.instance.currentUser!.uid;
 
-  Future<void> completeSetup(String profession, List<Map<String, dynamic>> services) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) throw Exception("Usuário não logado");
-
-    // 1. Usamos um Batch (Lote) para salvar todos os serviços de uma vez
+  Future<void> completeFullSetup({
+    required Map<String, dynamic> location,
+    required Map<String, dynamic> segmentation,
+    required List<Map<String, dynamic>> services,
+    required List<Map<String, dynamic>> staff,
+  }) async {
     final batch = _db.batch();
 
-    for (var service in services) {
-      var docRef = _db.collection('services').doc(); 
-      batch.set(docRef, {
-        'atelierId': uid,
-        'nome': service['nome'],
-        'preco': service['preco'],
-        'duracao': service['duracao'],
-        'criado_em': FieldValue.serverTimestamp(),
-      });
-    }
-
-    // 2. Atualiza o perfil da empresa para 'configurado = true'
+    // 1. Atualiza o perfil principal do Atelier
     var atelierRef = _db.collection('ateliers').doc(uid);
     batch.update(atelierRef, {
       'configurado': true,
-      'tipo_servico': profession,
-      // Se tiver 'barbearia' no nome, fica escuro, se não, fica claro (Estética/Unhas)
-      'tema': (profession.toLowerCase().contains('barbearia')) ? 'obsidian' : 'aura',
+      'endereco': location,
+      'segmentacao': segmentation,
+      'tipo_servico': segmentation['ramo'],
+      'tema': segmentation['ramo'] == 'Barbearia' ? 'obsidian' : 'aura',
     });
 
-    // 3. Executa o envio para o banco de dados
+    // 2. Salva os Serviços
+    for (var s in services) {
+      var sRef = _db.collection('services').doc();
+      batch.set(sRef, {...s, 'atelierId': uid});
+    }
+
+    // 3. Salva a Equipe (Staff)
+    for (var p in staff) {
+      var pRef = _db.collection('ateliers').doc(uid).collection('equipe').doc();
+      batch.set(pRef, {...p, 'ativo': true});
+    }
+
     await batch.commit();
   }
 }

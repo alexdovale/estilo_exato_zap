@@ -7,22 +7,29 @@ import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 
-// Importações das telas de Autenticação e Gestão
+// --- IMPORTAÇÕES DE TELAS (ADMIN & STAFF) ---
 import 'features/auth/welcome_page.dart';
 import 'features/auth/register_page.dart';
-import 'features/auth/login_page.dart';
+import 'features/auth/staff_login_page.dart';
+//import 'features/auth/login_page.dart';
 import 'features/admin/admin_dashboard_page.dart';
 import 'features/admin/profile_page.dart';
 import 'features/setup/setup_page.dart';
 
-// Importações das telas do Cliente
-import 'features/queue/public_queue_page.dart';
+// --- IMPORTAÇÕES DE TELAS (CLIENTE) ---
 import 'features/client/client_login_page.dart';
-import 'features/client/client_home_page.dart'; // TELA REAL DO CLIENTE
+import 'features/client/client_register_page.dart';
+import 'features/client/client_home_page.dart';
+import 'features/queue/public_queue_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Inicialização oficial do Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const EstiloExatoZapApp());
 }
 
@@ -36,13 +43,12 @@ class EstiloExatoZapApp extends StatelessWidget {
       builder: (context, authSnapshot) {
         final user = authSnapshot.data;
 
-        // --- 1. CASO: USUÁRIO DESLOGADO ---
+        // --- 1. SE DESLOGADO: Mostra a Welcome Page oficial ---
         if (user == null) {
           return _buildMaterialApp(context, 'obsidian', const WelcomePage());
         }
 
-        // --- 2. CASO: USUÁRIO LOGADO ---
-        // Verificamos primeiro se ele é um Atelier (Admin/Equipe)
+        // --- 2. SE LOGADO: Verifica se é um ATELIER (Dono/Equipe) ---
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('ateliers').doc(user.uid).snapshots(),
           builder: (context, dbSnapshot) {
@@ -50,9 +56,10 @@ class EstiloExatoZapApp extends StatelessWidget {
               return _buildMaterialApp(context, 'obsidian', const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFF2CA50)))));
             }
 
-            // --- SE EXISTIR NA COLEÇÃO 'ATELIERS' (É DONO OU EQUIPE) ---
+            // --- FLUXO DO ADMINISTRADOR / EQUIPE ---
             if (dbSnapshot.hasData && dbSnapshot.data!.exists) {
               final data = dbSnapshot.data!.data() as Map<String, dynamic>;
+              
               final String themeName = data['tema'] ?? 'obsidian';
               final bool isConfigured = data['configurado'] ?? false;
               final String status = data['status_assinatura'] ?? 'trial';
@@ -74,7 +81,7 @@ class EstiloExatoZapApp extends StatelessWidget {
               }
             }
 
-            // --- SE NÃO FOR ATELIER, VERIFICAMOS SE É UM CLIENTE ---
+            // --- 3. SE NÃO É ATELIER, VERIFICA SE É UM CLIENTE LOGADO ---
             return StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance.collection('clientes').doc(user.uid).snapshots(),
               builder: (context, clientSnapshot) {
@@ -84,7 +91,6 @@ class EstiloExatoZapApp extends StatelessWidget {
 
                 if (clientSnapshot.hasData && clientSnapshot.data!.exists) {
                   final clientData = clientSnapshot.data!.data() as Map<String, dynamic>;
-                  // Envia o cliente para a Home dele com o ID do último atelier que ele visitou
                   return _buildMaterialApp(
                     context, 
                     'aura', 
@@ -92,7 +98,7 @@ class EstiloExatoZapApp extends StatelessWidget {
                   );
                 }
 
-                // Fallback de segurança: Se logou mas não tem doc em lugar nenhum, desloga.
+                // Fallback: Se logou mas não tem registro em nenhuma coleção, desloga por segurança.
                 return _buildMaterialApp(context, 'obsidian', const WelcomePage());
               },
             );
@@ -102,7 +108,7 @@ class EstiloExatoZapApp extends StatelessWidget {
     );
   }
 
-  // --- CONSTRUTOR DO APP COM ROTAS DINÂMICAS ---
+  // --- O MAESTRO DAS ROTAS E TEMAS ---
   Widget _buildMaterialApp(BuildContext context, String themeName, Widget home) {
     return MaterialApp(
       title: 'EstiloExatoZap',
@@ -110,16 +116,19 @@ class EstiloExatoZapApp extends StatelessWidget {
       theme: AppTheme.getTheme(themeName), 
       home: home,
       onGenerateRoute: (settings) {
+        // ROTA DINÂMICA PWA: estilozap.com/#/fila/ID_DO_ATELIER
         if (settings.name != null && settings.name!.startsWith('/fila/')) {
           final id = settings.name!.replaceFirst('/fila/', '');
-          return MaterialPageRoute(builder: (_) => ClientLoginPage(atelierId: id));
+          return MaterialPageRoute(
+            builder: (_) => ClientLoginPage(atelierId: id),
+          );
         }
         return null;
       },
     );
   }
 
-  // TELA DE ASSINATURA EXPIRADA
+  // TELA DE ASSINATURA EXPIRADA (PARA O DONO)
   Widget _buildExpiredPage() {
     return Scaffold(
       backgroundColor: const Color(0xFF131313),
@@ -134,15 +143,22 @@ class EstiloExatoZapApp extends StatelessWidget {
               Text("Acesso Suspenso", style: GoogleFonts.manrope(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               const Text(
-                "Seu período de teste terminou.\nRealize o pagamento para liberar seu painel.",
+                "Seu período de teste EstiloExatoZap terminou.\nRealize o pagamento para liberar seu painel e continuar atendendo.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white60, fontSize: 16),
               ),
               const SizedBox(height: 40),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF2CA50), minimumSize: const Size(double.infinity, 55)),
-                onPressed: () {}, // Link Mercado Pago
-                child: const Text("PAGAR ASSINATURA (R\$ 89,90)", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF2CA50), 
+                  minimumSize: const Size(double.infinity, 60),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
+                onPressed: () {
+                  // Aqui redirecionará para o link de checkout do Mercado Pago
+                },
+                child: const Text("PAGAR ASSINATURA (R\$ 89,90)", 
+                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1)),
               )
             ],
           ),
