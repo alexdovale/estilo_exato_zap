@@ -1,0 +1,9 @@
+{
+  "name": "Estilo Exato Zap",
+  "description": "Sistema Inteligente de Gestão de Fila e Atendimento para Barbearias e Ateliers com Notificação WhatsApp e Cartão Fidelidade",
+  "version": "1.0.0",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
